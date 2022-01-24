@@ -1,0 +1,79 @@
+version: '3'
+
+services:
+  app:
+    build: ./app
+    ports:
+      - "5001:5001"
+    links:
+      - mysql
+      - kafka
+    depends_on:
+      - mysql
+      - kafka
+    command: >
+      sh -c "utils/wait-for-it.sh datadog:8126 -t 5 -- echo \"DataDog available\" &&
+             utils/wait-for-it.sh db:3306 -t 10 -- echo \"MySQL available\" && 
+             utils/wait-for-it.sh kafka:29092 -t 10 -- echo \"Kafka available\" &&
+             ddtrace-run uvicorn main:app --host 0.0.0.0 --port 5001 --workers 2"
+    environment:
+      USE_LOCAL_MYSQL: "YES"
+      DD_CALL_BASIC_CONFIG: "false"
+      DD_SERVICE: "demo-service" 
+      DD_ENV: "local" 
+      DD_AGENT_HOST: "datadog"
+      KAFKA_HOST: kafka:9092
+      DB_USER: "user"
+      DB_PASSWORD: "password"
+      DB_HOST: "mysql:3306"
+      DB_NAME: "db"
+  mysql:
+    platform: linux/x86_64
+    image: mysql:5.7
+    restart: always
+    environment:
+      MYSQL_DATABASE: 'db'
+      MYSQL_USER: 'user'
+      MYSQL_PASSWORD: 'password'
+      MYSQL_ROOT_PASSWORD: 'password'
+    ports:
+      - '3306:3306'
+    expose:
+      - '3306'
+    volumes:
+      - my-db:/var/lib/mysql
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  datadog:
+    image: datadog/agent
+    ports:
+      - 8126:8126
+      - 8125:8125
+    environment:
+      - DD_SERVICE=demo-service
+      - DD_API_KEY=***
+      - DD_SITE=datadoghq.eu
+      - DD_ENV=local
+      - DD_APM_ENABLED=true
+      - DD_LOGS_ENABLED=true
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=false
+      - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+      - DD_CALL_BASIC_CONFIG=false
+volumes:
+  my-db:
