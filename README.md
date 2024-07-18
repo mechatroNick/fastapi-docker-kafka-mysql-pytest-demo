@@ -1,6 +1,6 @@
-# TEMPLATE FlaskAPI + Kafka + MySQL + Consumer Healthcheck
+# TEMPLATE FastAPI + Kafka + MySQL + Consumer Healthcheck
 
-## 1. FlaskAPI
+## 1. FastAPI
 
 ### 1.1. New Model
 
